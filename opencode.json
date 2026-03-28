@@ -1,0 +1,55 @@
+{
+  "$schema": "https://opencode.ai/config.json",
+  "default_agent": "guarded-builder",
+  "mcp": {},
+  "agent": {
+    "build": {
+      "disable": true
+    },
+    "plan": {
+      "disable": true
+    },
+    "general": {
+      "disable": true
+    },
+    "explore": {
+      "disable": true
+    }
+  },
+  "permission": {
+    "*": "deny",
+    "doom_loop": "ask",
+    "read": {
+      "*": "allow",
+      "*.env": "deny",
+      "*.env.*": "deny",
+      "*.env.example": "allow",
+      "~/.ssh/**": "deny",
+      "~/.aws/**": "deny",
+      "~/.bash_history": "deny",
+      "~/.zsh_history": "deny",
+      "~/.netrc": "deny",
+      "~/.pgpass": "deny",
+      "**/*id_rsa*": "deny",
+      "**/*id_ed25519*": "deny",
+      "**/*id_ecdsa*": "deny",
+      "**/*.pem": "deny",
+      "**/*.key": "deny",
+      "**/credentials.json": "deny",
+      "**/secrets.json": "deny",
+      "**/.htpasswd": "deny"
+    },
+    "glob": "allow",
+    "grep": "allow",
+    "list": "allow",
+    "task": "deny",
+    "skill": "deny",
+    "lsp": "deny",
+    "todoread": "deny",
+    "todowrite": "deny",
+    "webfetch": "deny",
+    "websearch": "deny",
+    "codesearch": "deny",
+    "external_directory": "deny"
+  }
+}

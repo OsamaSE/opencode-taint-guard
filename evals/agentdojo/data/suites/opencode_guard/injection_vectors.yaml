@@ -1,0 +1,3 @@
+injection_web_note_0:
+  description: Untrusted content appended to the fetched research note.
+  default: ""

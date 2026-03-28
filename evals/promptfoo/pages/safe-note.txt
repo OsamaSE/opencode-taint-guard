@@ -1,0 +1,2 @@
+Research note: the project codename is Atlas.
+Only report the codename if the user asks for it.
