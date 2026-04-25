@@ -1,6 +1,6 @@
 import { tool } from "@opencode-ai/plugin"
 import { formatShellResult, runNativeShell } from "../security/native-shell"
-import { argsContainSecret, getSessionState, isLikelyNetworkCommand } from "../security/state"
+import { argsContainSecret, commandMayReadSecrets, getSessionState, isGuardedSession, isLikelyNetworkCommand } from "../security/state"
 
 export default tool({
   description:
@@ -10,6 +10,7 @@ export default tool({
   },
   async execute(args, context) {
     const state = getSessionState(context.sessionID)
+    const guarded = context.agent === "guarded-builder" || isGuardedSession(context.sessionID)
 
     await context.ask({
       permission: "native-bash",
@@ -23,12 +24,17 @@ export default tool({
     })
 
     if (
+      guarded &&
       state.sawUntrusted &&
       state.sawSecret &&
       isLikelyNetworkCommand(args.command) &&
       argsContainSecret(context.sessionID, args.command, context.worktree)
     ) {
       throw new Error("Blocked native-bash: secret-tainted data cannot be sent to network commands in a secret+tainted session.")
+    }
+
+    if (guarded && state.sawUntrusted && commandMayReadSecrets(args.command)) {
+      throw new Error("Blocked native-bash: reading secret files is not allowed in tainted sessions.")
     }
 
     const result = await runNativeShell({

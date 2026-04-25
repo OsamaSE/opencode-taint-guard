@@ -1,6 +1,6 @@
 {
   "dependencies": {
-    "@opencode-ai/plugin": "1.3.11",
+    "@opencode-ai/plugin": "1.14.24",
     "just-bash": "^2.14.0"
   }
 }

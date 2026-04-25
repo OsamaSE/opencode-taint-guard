@@ -1,12 +1,13 @@
 import type { Plugin } from "@opencode-ai/plugin"
 import {
   argsContainSecret,
-  commandTouchesEnv,
   clearPendingWebCalls,
+  commandMayReadSecrets,
   extractWritablePathsFromTool,
   getSessionMode,
   getSessionState,
   hasPendingWebCall,
+  isGuardedSession,
   isEnvPath,
   isLikelyNetworkCommand,
   markSessionSecret,
@@ -16,6 +17,7 @@ import {
   rememberSecretLiterals,
   rememberTaintedFile,
   rememberToolOutputTaint,
+  setSessionAgent,
   takePendingCall,
   type SessionMode,
 } from "../security/state"
@@ -77,7 +79,21 @@ export const TaintSecurity: Plugin = async ({ client }) => {
   }
 
   return {
+    "chat.message": async (input) => {
+      if (input.agent) {
+        setSessionAgent(input.sessionID, input.agent)
+      }
+    },
+
+    "chat.params": async (input) => {
+      setSessionAgent(input.sessionID, input.agent)
+    },
+
     "tool.execute.before": async (input, output) => {
+      if (!isGuardedSession(input.sessionID)) {
+        return
+      }
+
       const modeBefore = getSessionMode(input.sessionID)
       const state = getSessionState(input.sessionID)
       const secretInput = argsContainSecret(input.sessionID, output.args, state.justBashRuntime?.worktree)
@@ -95,6 +111,10 @@ export const TaintSecurity: Plugin = async ({ client }) => {
     },
 
     "tool.execute.after": async (input, output) => {
+      if (!isGuardedSession(input.sessionID)) {
+        return
+      }
+
       const pending = takePendingCall(input.sessionID, input.callID)
       const beforeMode = pending?.modeBefore ?? getSessionMode(input.sessionID)
 
@@ -112,7 +132,7 @@ export const TaintSecurity: Plugin = async ({ client }) => {
       }
 
       const command = shellCommand(input.tool, input.args)
-      if (command && commandTouchesEnv(command)) {
+      if (command && commandMayReadSecrets(command)) {
         markSessionSecret(input.sessionID)
         const parsed = parseSecretsFromEnv(output.output)
         rememberSecretLiterals(input.sessionID, parsed)
@@ -144,6 +164,11 @@ export const TaintSecurity: Plugin = async ({ client }) => {
       if (!input.sessionID) {
         return
       }
+
+      if (!isGuardedSession(input.sessionID)) {
+        return
+      }
+
       output.system.push(buildModeBanner(input.sessionID))
     },
   }

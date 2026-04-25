@@ -1,7 +1,7 @@
 import { tool } from "@opencode-ai/plugin"
 import { runJustBash } from "../security/just-bash"
 import { formatShellResult, runNativeShell } from "../security/native-shell"
-import { getSessionState } from "../security/state"
+import { commandMayReadSecrets, getSessionState, isGuardedSession } from "../security/state"
 
 export default tool({
   description:
@@ -11,8 +11,9 @@ export default tool({
   },
   async execute(args, context) {
     const state = getSessionState(context.sessionID)
+    const guarded = context.agent === "guarded-builder" || isGuardedSession(context.sessionID)
 
-    if (!state.sawUntrusted) {
+    if (!guarded || !state.sawUntrusted) {
       const result = await runNativeShell({
         command: args.command,
         cwd: context.directory,
@@ -22,6 +23,7 @@ export default tool({
         title: "native bash",
         metadata: {
           route: "native",
+          guarded,
           sawUntrusted: state.sawUntrusted,
           sawSecret: state.sawSecret,
           networkEnabled: true,
@@ -34,7 +36,8 @@ export default tool({
       })
     }
 
-    const networkEnabled = !state.sawSecret
+    const mayReadSecrets = commandMayReadSecrets(args.command)
+    const networkEnabled = !state.sawSecret && !mayReadSecrets
     const result = await runJustBash({
       sessionID: context.sessionID,
       worktree: context.worktree,
@@ -46,6 +49,7 @@ export default tool({
       title: networkEnabled ? "just-bash" : "just-bash (network disabled)",
       metadata: {
         route: "just-bash",
+        guarded,
         sawUntrusted: state.sawUntrusted,
         sawSecret: state.sawSecret,
         networkEnabled,

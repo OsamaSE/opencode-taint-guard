@@ -2,6 +2,8 @@ import path from "node:path"
 
 export type SessionMode = "clean" | "secret-only" | "tainted" | "secret-tainted"
 
+const GUARDED_AGENT = "guarded-builder"
+
 type PendingCall = {
   tool: string
   secretInput: boolean
@@ -9,6 +11,7 @@ type PendingCall = {
 }
 
 type SessionState = {
+  agent?: string
   sawUntrusted: boolean
   sawSecret: boolean
   secretLiterals: Set<string>
@@ -48,6 +51,7 @@ export function getSessionState(sessionID: string): SessionState {
   let session = store.sessions.get(sessionID)
   if (!session) {
     session = {
+      agent: undefined,
       sawUntrusted: false,
       sawSecret: false,
       secretLiterals: new Set(),
@@ -72,6 +76,19 @@ export function getSessionMode(sessionID: string): SessionMode {
     return "secret-only"
   }
   return "clean"
+}
+
+export function setSessionAgent(sessionID: string, agent?: string): void {
+  const normalized = typeof agent === "string" ? agent.trim() : ""
+  getSessionState(sessionID).agent = normalized || undefined
+}
+
+export function getSessionAgent(sessionID: string): string | undefined {
+  return getSessionState(sessionID).agent
+}
+
+export function isGuardedSession(sessionID: string): boolean {
+  return getSessionAgent(sessionID) === GUARDED_AGENT
 }
 
 export function markSessionUntrusted(sessionID: string): boolean {
@@ -312,8 +329,21 @@ export function isEnvPath(filePath: string): boolean {
   return name === ".env" || name.startsWith(".env.")
 }
 
-export function commandTouchesEnv(command: string): boolean {
-  return /(^|\s)(\.env|\.env\.[^\s]+)(\s|$)/.test(command)
+export function commandMayReadSecrets(command: string): boolean {
+  const withoutComments = command.replace(/#.*/g, "")
+  const tokens = withoutComments.split(/[\s;"'`|&<>()$*?[\]{}]/)
+  for (const rawToken of tokens) {
+    const token = rawToken.replace(/^["']+|["']+$/g, "")
+    if (!token) continue
+    const basename = token.split(/[\\/]/).pop() || token
+    if (basename === ".env") {
+      return true
+    }
+    if (basename.startsWith(".env.") && basename !== ".env.example") {
+      return true
+    }
+  }
+  return false
 }
 
 export function isLikelyNetworkCommand(command: string): boolean {
